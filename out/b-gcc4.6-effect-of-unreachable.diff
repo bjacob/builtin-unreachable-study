@@ -1,0 +1,141 @@
+--- out/b-gcc4.6.s	2014-04-01 03:23:05.990775170 -0400
++++ out/b-gcc4.6-use-unreachable.s	2014-04-01 03:23:06.014775171 -0400
+@@ -7,14 +7,13 @@
+ .LFB0:
+ 	.cfi_startproc
+ 	testl	%edi, %edi
+-	movl	$1, %eax
+-	je	.L2
++	je	.L12
+ 	cmpl	$1, %edi
+-	movl	%esi, %eax
+-	je	.L2
++	je	.L13
+ 	cmpl	$2, %edi
+ 	je	.L15
+ 	cmpl	$3, %edi
++	.p2align 4,,2
+ 	je	.L16
+ 	cmpl	$4, %edi
+ 	.p2align 4,,2
+@@ -34,74 +33,76 @@
+ 	cmpl	$9, %edi
+ 	.p2align 4,,2
+ 	je	.L22
+-	xorl	%eax, %eax
+ 	cmpl	$10, %edi
+-	je	.L23
++	.p2align 4,,2
++	jne	.L11
++	movl	%esi, %eax
++	imull	%esi, %eax
++	leal	-1(%rax,%rax,2), %eax
++	imull	%esi, %eax
++	addl	$1, %eax
++	ret
+ 	.p2align 4,,10
+ 	.p2align 3
+-.L2:
+-	rep
++.L12:
++	movl	$1, %eax
++	ret
++	.p2align 4,,10
++	.p2align 3
++.L13:
++	movl	%esi, %eax
+ 	ret
+ 	.p2align 4,,10
+ 	.p2align 3
+ .L15:
+-	leal	1(%rax), %edx
+-	imull	%edx, %eax
++	leal	1(%rsi), %eax
++	imull	%esi, %eax
+ 	ret
+ 	.p2align 4,,10
+ 	.p2align 3
+ .L16:
+-	movl	%esi, %edx
+-	imull	%esi, %edx
+-	imull	%edx, %eax
++	movl	%esi, %eax
++	imull	%esi, %eax
++	imull	%esi, %eax
+ 	ret
+ 	.p2align 4,,10
+ 	.p2align 3
+ .L17:
+-	movl	%esi, %edx
+-	leal	10(%rax), %ecx
+-	imull	%esi, %edx
+-	addl	$1, %edx
+-	movl	%edx, %eax
++	movl	%esi, %eax
++	imull	%esi, %eax
++	addl	$10, %esi
++	addl	$1, %eax
++	movl	%eax, %edx
+ 	sarl	$31, %edx
+-	idivl	%ecx
++	idivl	%esi
+ 	ret
+ 	.p2align 4,,10
+ 	.p2align 3
+ .L18:
+-	movl	%esi, %edx
+-	imull	%esi, %edx
+-	addl	$1, %edx
+-	imull	%edx, %eax
++	movl	%esi, %eax
++	imull	%esi, %eax
++	addl	$1, %eax
++	imull	%esi, %eax
+ 	ret
+ 	.p2align 4,,10
+ 	.p2align 3
+ .L19:
+-	addl	%eax, %eax
+-	ret
+-	.p2align 4,,10
+-	.p2align 3
+-.L23:
+-	movl	%esi, %eax
+-	imull	%esi, %eax
+-	leal	-1(%rax,%rax,2), %eax
+-	imull	%esi, %eax
+-	addl	$1, %eax
++	leal	(%rsi,%rsi), %eax
+ 	ret
+ 	.p2align 4,,10
+ 	.p2align 3
+ .L20:
+-	leal	3(%rax), %edx
+-	imull	%edx, %eax
++	leal	3(%rsi), %eax
++	imull	%esi, %eax
+ 	ret
+ 	.p2align 4,,10
+ 	.p2align 3
+ .L21:
+-	movl	%esi, %edx
+-	imull	%esi, %edx
+-	leal	(%rdx,%rdx,4), %edx
+-	addl	%esi, %edx
+-	imull	%edx, %eax
++	movl	%esi, %eax
++	imull	%esi, %eax
++	leal	(%rax,%rax,4), %eax
++	addl	%esi, %eax
++	imull	%esi, %eax
+ 	ret
+ 	.p2align 4,,10
+ 	.p2align 3
+@@ -111,6 +112,7 @@
+ 	subl	%esi, %eax
+ 	addl	$1, %eax
+ 	ret
++.L11:
+ 	.cfi_endproc
+ .LFE0:
+ 	.size	_Z3fooii, .-_Z3fooii

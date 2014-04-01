@@ -1,0 +1,253 @@
+This is a study of the effect of __builtin_unreachable (abbreviated as just 'unreachable'  below) in GCC 4.6 and in Clang 3.4, on Linux x86_64, on four test programs.
+
+It was made to provide some background for this mozilla.dev.platform thread:
+https://groups.google.com/forum/#!topic/mozilla.dev.platform/E0sg9EYk1xU
+
+*************************************************************************
+*************************************************************************
+
+Test program 1/4 - a.cpp
+
+Switch statement with unreachable default case.
+
+Source code:
+
+  #ifdef USE_UNREACHABLE
+  #define UNREACHABLE() __builtin_unreachable()
+  #else
+  #define UNREACHABLE()
+  #endif
+
+  int foo(int x, int y)
+  {
+    int result = 0;
+    switch(x) {
+      case 0:                     break;
+      case 1: result = y;         break;
+      case 2: result = y*y + y;   break;
+      case 3: result = y*y*y;     break;
+      case 4: result = y*y + 1;   break;
+      case 5: result = y*y*y + y; break;
+      default: UNREACHABLE();     break;
+    }
+
+    return result;
+  }
+
+Results:
+
+Both compilers implement the switch as a jump table.
+
+Clang3.4: unreachable has no effect. The switch parameter is always checked before using the jump table.
+
+GCC4.6: unreachable has the effect of removing the check that the switch parameter is in range, before using the jump table. Passing a bad parameter value then allows to jump to an arbitrary address.
+
+Here's the relevant part of the assembly with GCC 4.6:
+
+Without unreachable:
+
+        cmpl    $5, %edi
+        jbe     .L11            ; check the switch parameter
+.L2:
+        xorl    %eax, %eax
+        ret                     ; out-of-range parameter, return early
+        .p2align 4,,10
+        .p2align 3
+.L11:
+        movl    %edi, %edi
+        jmp     *.L8(,%rdi,8)   ; using the jump table here
+
+We see that if the switch parameter is out of range, we fall through into .L2, returning from the function.
+
+Now with unreachable:
+
+        cmpl    $5, %edi
+        jbe     .L12            ; check the switch parameter ...
+        .p2align 4,,10          ; ... but if it's not in range, we don't early-return...
+        .p2align 3              ; ... so we keep executing through some alignment padding ...
+.L12:                           ; ... and we fall through ...
+        movl    %edi, %edi
+        jmp     *.L9(,%rdi,8)   ; ... to the jump table!
+
+We see that unreachable has the effect of removing the early-return in the case where the switch parameter is bad. We thus carry on executing from the current location, which takes us through some alignment padding (.p2align). If the location is already aligned so that there are no padding bytes here, or if the padding is filled with NOP's (which according to https://sourceware.org/binutils/docs/as/P2align.html is the case "on some systems"), then we'll use the jump table with our bad parameter!
+
+Conclusion: if we hit the 'unreachable' path, with clang3.4 we're safe, but with gcc4.6 we have at least a crash, and a sec-critical if an attacker can control the switch parameter.
+
+*************************************************************************
+*************************************************************************
+
+Test program 2/4 - b.cpp
+
+If/Else chain long suitable to be optimized as a jump table.
+
+Source code:
+
+  #ifdef USE_UNREACHABLE
+  #define UNREACHABLE() __builtin_unreachable()
+  #else
+  #define UNREACHABLE()
+  #endif
+
+  int foo(int x, int y)
+  {
+    int result = 0;
+
+    if      (x == 0)  result = 1;
+    else if (x == 1)  result = y;
+    else if (x == 2)  result = y*y + y;
+    else if (x == 3)  result = y*y*y;
+    else if (x == 4)  result = (y*y + 1) / (y + 10);
+    else if (x == 5)  result = y*y*y + y;
+    else if (x == 6)  result = 2*y;
+    else if (x == 7)  result = y*y + 3*y;
+    else if (x == 8)  result = 5*y*y*y + y*y;
+    else if (x == 9)  result = 7*y*y + 1;
+    else if (x == 10) result = 3*y*y*y - y + 1;
+    else {
+      UNREACHABLE();
+    }
+
+    return result;
+  }
+
+Results:
+
+Clang3.4 implements this using a jump table and does the range check even with unreachable. Unreachable still has the effect of merging the last case with the default case, which allows to generate slightly smaller code.
+
+GCC4.6 implements this as a dump chain of conditional jumps; unreachable has the effect of jumping to the end of the function without a 'ret' instruction, i.e. continuing execution outside of the function! (I actually verified that that's what happens in GDB).
+
+Conclusion: if we hit the 'unreachable' path, with clang3.4 we're safe, but with gcc4.6 we end up running code of unrelated functions, typically crashing, very possibly doing exploitable things first!
+
+*************************************************************************
+*************************************************************************
+
+Test program 3/4 - c.cpp
+
+If-branch on a condition already known to be never met due to an earlier unreachable statement.
+
+Source code:
+
+  #ifdef USE_UNREACHABLE
+  #define UNREACHABLE() __builtin_unreachable()
+  #else
+  #define UNREACHABLE()
+  #endif
+
+  unsigned int foo(unsigned int x)
+  {
+    bool b = x > 100;
+
+    if (b) {
+      UNREACHABLE();
+    }
+
+    if (b) {
+      return (x*x*x*x + x*x + 1) / (x*x*x + x + 1234);
+    }
+
+    return x;
+  }
+
+Results:
+
+Clang3.4: unreachable has no effect.
+
+GCC4.6: the unreachable statement is fully understood to make this condition never met, and GCC4.6 uses this to omit it entirely.
+
+Without unreachable:
+
+        .cfi_startproc
+        cmpl    $100, %edi
+        movl    %edi, %eax
+        jbe     .L2
+        movl    %edi, %ecx
+        xorl    %edx, %edx
+        imull   %edi, %ecx
+        addl    $1, %ecx
+        imull   %edi, %ecx
+        imull   %ecx, %eax
+        addl    $1234, %ecx
+        addl    $1, %eax
+        divl    %ecx
+.L2:
+        rep
+        ret
+        .cfi_endproc
+
+With unreachable:
+
+        .cfi_startproc
+        movl    %edi, %eax
+        ret
+        .cfi_endproc
+
+
+*************************************************************************
+*************************************************************************
+
+Test program 4/4 - d.cpp
+
+If-branch on a condition already known to be always met due to an earlier unreachable statement on the opposite condition.
+
+Source code:
+
+  #ifdef USE_UNREACHABLE
+  #define UNREACHABLE() __builtin_unreachable()
+  #else
+  #define UNREACHABLE()
+  #endif
+
+  unsigned int foo(unsigned int x)
+  {
+    bool b = x > 100;
+
+    if (!b) {
+      UNREACHABLE();
+    }
+
+    if (b) {
+      return (x*x*x*x + x*x + 1) / (x*x*x + x + 1234);
+    }
+
+    return x;
+  }
+
+Clang3.4: unreachable has no effect.
+
+GCC4.6: the unreachable statement is fully understood to make this condition always met, and GCC4.6 uses this to remove the conditional branch and unconditionally take this branch.
+
+Without unreachable:
+
+        .cfi_startproc
+        cmpl    $100, %edi
+        movl    %edi, %eax
+        jbe     .L2
+        movl    %edi, %ecx
+        xorl    %edx, %edx
+        imull   %edi, %ecx
+        addl    $1, %ecx
+        imull   %edi, %ecx
+        imull   %ecx, %eax
+        addl    $1234, %ecx
+        addl    $1, %eax
+        divl    %ecx
+.L2:
+        rep
+        ret
+        .cfi_endproc
+
+With unreachable:
+
+        .cfi_startproc
+        movl    %edi, %ecx
+        xorl    %edx, %edx
+        imull   %edi, %ecx
+        addl    $1, %ecx
+        imull   %edi, %ecx
+        movl    %ecx, %eax
+        addl    $1234, %ecx
+        imull   %edi, %eax
+        addl    $1, %eax
+        divl    %ecx
+        ret
+        .cfi_endproc

@@ -1,0 +1,37 @@
+--- out/b-clang3.4.s	2014-04-01 03:23:05.930775169 -0400
++++ out/b-clang3.4-use-unreachable.s	2014-04-01 03:23:05.954775170 -0400
+@@ -11,10 +11,6 @@
+ 	cmpl	$9, %edi
+ 	jbe	.LBB0_1
+ # BB#11:
+-	xorl	%eax, %eax
+-	cmpl	$10, %edi
+-	jne	.LBB0_13
+-# BB#12:
+ 	movl	%esi, %eax
+ 	imull	%eax, %eax
+ 	imull	%esi, %eax
+@@ -22,12 +18,11 @@
+ 	movl	$1, %eax
+ 	subl	%esi, %eax
+ 	addl	%ecx, %eax
+-	jmp	.LBB0_13
++.LBB0_12:
++	ret
+ .LBB0_1:
+ 	movl	$1, %eax
+ 	jmpq	*.LJTI0_0(,%rcx,8)
+-.LBB0_13:
+-	ret
+ .LBB0_2:
+ 	movl	%esi, %eax
+ 	ret
+@@ -81,7 +76,7 @@
+ 	.section	.rodata,"a",@progbits
+ 	.align	8
+ .LJTI0_0:
+-	.quad	.LBB0_13
++	.quad	.LBB0_12
+ 	.quad	.LBB0_2
+ 	.quad	.LBB0_3
+ 	.quad	.LBB0_4

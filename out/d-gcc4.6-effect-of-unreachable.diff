@@ -1,0 +1,25 @@
+--- out/d-gcc4.6.s	2014-04-01 03:23:06.254775177 -0400
++++ out/d-gcc4.6-use-unreachable.s	2014-04-01 03:23:06.290775177 -0400
+@@ -6,20 +6,16 @@
+ _Z3fooj:
+ .LFB0:
+ 	.cfi_startproc
+-	cmpl	$100, %edi
+-	movl	%edi, %eax
+-	jbe	.L2
+ 	movl	%edi, %ecx
+ 	xorl	%edx, %edx
+ 	imull	%edi, %ecx
+ 	addl	$1, %ecx
+ 	imull	%edi, %ecx
+-	imull	%ecx, %eax
++	movl	%ecx, %eax
+ 	addl	$1234, %ecx
++	imull	%edi, %eax
+ 	addl	$1, %eax
+ 	divl	%ecx
+-.L2:
+-	rep
+ 	ret
+ 	.cfi_endproc
+ .LFE0:

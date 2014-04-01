@@ -1,0 +1,74 @@
+--- out/a-gcc4.6.s	2014-04-01 03:23:05.874775167 -0400
++++ out/a-gcc4.6-use-unreachable.s	2014-04-01 03:23:05.898775169 -0400
+@@ -7,35 +7,32 @@
+ .LFB0:
+ 	.cfi_startproc
+ 	cmpl	$5, %edi
+-	jbe	.L11
+-.L2:
+-	xorl	%eax, %eax
+-	ret
++	jbe	.L12
+ 	.p2align 4,,10
+ 	.p2align 3
+-.L11:
++.L12:
+ 	movl	%edi, %edi
+-	jmp	*.L8(,%rdi,8)
++	jmp	*.L9(,%rdi,8)
+ 	.section	.rodata
+ 	.align 8
+ 	.align 4
+-.L8:
+-	.quad	.L2
+-	.quad	.L9
+-	.quad	.L4
++.L9:
++	.quad	.L3
++	.quad	.L10
+ 	.quad	.L5
+ 	.quad	.L6
+ 	.quad	.L7
++	.quad	.L8
+ 	.text
+ 	.p2align 4,,10
+ 	.p2align 3
+-.L6:
++.L7:
+ 	imull	%esi, %esi
+ 	leal	1(%rsi), %eax
+ 	ret
+ 	.p2align 4,,10
+ 	.p2align 3
+-.L7:
++.L8:
+ 	movl	%esi, %eax
+ 	imull	%esi, %eax
+ 	addl	$1, %eax
+@@ -43,18 +40,23 @@
+ 	ret
+ 	.p2align 4,,10
+ 	.p2align 3
+-.L9:
++.L3:
++	xorl	%eax, %eax
++	ret
++	.p2align 4,,10
++	.p2align 3
++.L10:
+ 	movl	%esi, %eax
+ 	ret
+ 	.p2align 4,,10
+ 	.p2align 3
+-.L4:
++.L5:
+ 	leal	1(%rsi), %eax
+ 	imull	%esi, %eax
+ 	ret
+ 	.p2align 4,,10
+ 	.p2align 3
+-.L5:
++.L6:
+ 	movl	%esi, %eax
+ 	imull	%esi, %eax
+ 	imull	%esi, %eax
